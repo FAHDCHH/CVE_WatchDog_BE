@@ -29,7 +29,15 @@ class BaseExtractor(ABC):
     @abstractmethod
     def fetch(self) -> list[dict]:
         pass
-
+    @abstractmethod
+    def url_construction(self) -> str:
+        pass
+    @abstractmethod
+    def _parser(self,resp: httpx.Response) -> list[dict]:
+        pass
+    @abstractmethod
+    def fetch(self) -> list[dict]:
+        pass
     @retry(
         stop=stop_after_attempt(3),
         wait=wait_exponential(multiplier=2, min=2, max=10),
