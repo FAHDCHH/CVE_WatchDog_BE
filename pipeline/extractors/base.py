@@ -2,6 +2,7 @@
 pipeline/extractors/base.py
 Shared behavior: retry, log, store.
 """
+import logging
 import httpx
 from abc import ABC, abstractmethod
 from tenacity import (
@@ -30,7 +31,7 @@ class BaseExtractor(ABC):
     def fetch(self) -> list[dict]:
         pass
     @abstractmethod
-    def url_construction(self) -> str:
+    def build_url(self) -> str:
         pass
     @abstractmethod
     def _parser(self,resp: httpx.Response) -> list[dict]:
@@ -62,6 +63,7 @@ class BaseExtractor(ABC):
         except (URLNotAllowedError, RateLimitError):
             raise
         except Exception as e:
+            print(f"Fetch failed for {url}: {e}")
             raise ExtractionError(f"Fetch failed for {url}") from e
 
     def _store(self, records: list[dict], s3_key: str) -> None:

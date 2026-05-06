@@ -15,7 +15,7 @@ from pyarrow.csv import ReadOptions
 class EPSSextractor(BaseExtractor):
     def __init__(self, elt_run_id: str):
         super().__init__(elt_run_id=elt_run_id, source="epss")
-    def url_construction(self):
+    def build_url(self):
         """constructs the queried url based for the current date to this format : `https://epss.empiricalsecurity.com/epss_scores-YYYY-MM-DD.csv.gz`"""
         yesterday = datetime.now() - timedelta(days=1)
         current_date = yesterday.strftime('%Y-%m-%d')
@@ -31,7 +31,7 @@ class EPSSextractor(BaseExtractor):
         return table.to_pylist()
     def fetch(self):
         """fetches the epss csv and stores it in the raw store"""
-        url = self.url_construction()
+        url = self.build_url()
         resp = self._request(url, headers={"User-Agent": "Mozilla/5.0"})
         records = self._parser(resp)
        

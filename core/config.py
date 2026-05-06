@@ -20,6 +20,7 @@ class Settings(BaseSettings):
         "epss.empiricalsecurity.com",
         "raw.githubusercontent.com",
         "www.cisa.gov",
+        "cwe.mitre.org"
     }
 
     SENSITIVE_KEYS: ClassVar[set] = {
