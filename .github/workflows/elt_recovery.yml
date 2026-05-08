@@ -1,0 +1,26 @@
+name: ELT Recovery
+
+on:
+  workflow_run:
+    workflows: ["ELT Pipeline — NVD", "ELT Pipeline — Daily"]
+    types: [completed]
+
+env:
+  NVD_API_KEY:            ${{ secrets.NVD_API_KEY }}
+  DATABASE_URL:           ${{ secrets.DATABASE_URL }}
+  INTERNAL_API_TOKEN:     ${{ secrets.INTERNAL_API_TOKEN }}
+  AWS_ACCESS_KEY_ID:      ${{ secrets.AWS_ACCESS_KEY_ID }}
+  AWS_SECRET_ACCESS_KEY:  ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+  R2_ENDPOINT_URL:        ${{ secrets.R2_ENDPOINT_URL }}
+  R2_BUCKET_NAME:         ${{ secrets.R2_BUCKET_NAME }}
+
+jobs:
+  check-and-recover:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install -r requirements.txt
+      - run: python -m pipeline.recovery

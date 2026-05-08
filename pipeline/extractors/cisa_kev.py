@@ -13,7 +13,7 @@ class CISA_KEVExtractor(BaseExtractor):
     def __init__(self, elt_run_id: str):
         super().__init__(elt_run_id=elt_run_id, source="cisa_kev")
 
-    def url_construction(self,type:str):
+    def build_url(self,type:str):
         """Constructs the API URL for CISA KEV"""
         if type == "primary":
             return "https://raw.githubusercontent.com/cisagov/kev-data/develop/known_exploited_vulnerabilities.json"
@@ -31,9 +31,9 @@ class CISA_KEVExtractor(BaseExtractor):
     def fetch(self):
         """Fetches CISA KEV data and stores it in the raw store"""
         try:
-            resp = self._request(self.url_construction("primary"))
+            resp = self._request(self.build_url("primary"))
         except Exception:
-            resp = self._request(self.url_construction("primary"))
+            resp = self._request(self.build_url("primary"))
         records = self._parser(resp)
 
         s3_key = build_s3_key(  

@@ -56,7 +56,7 @@ class NVDCVEsExtractor(BaseExtractor):
             start_index = 0
             page = 1
             while True:
-                url = self._build_url({"startIndex": start_index, "resultsPerPage": 2000})
+                url = self.build_url({"startIndex": start_index, "resultsPerPage": 2000})
                 print(url)
                 print(settings.NVD_API_KEY)
                 resp = self._request(url, headers={"apiKey": settings.NVD_API_KEY})
