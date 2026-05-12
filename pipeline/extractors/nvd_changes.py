@@ -58,6 +58,7 @@ class NVD_Changes_Extractor(BaseExtractor):
             records = self._parser(resp)
             s3_key = build_s3_key(
                 self.source,
+                datetime.utcnow().strftime("%Y-%m-%d"),
                 self.elt_run_id,
                 f"{self.mode}_page_{page:03d}"
             )

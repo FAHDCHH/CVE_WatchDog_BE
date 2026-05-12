@@ -51,40 +51,44 @@ class NVDCVEsExtractor(BaseExtractor):
             return {
                 "lastModStartDate": start_date,
                 "lastModEndDate": datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%S.000Z")}
+    def _fetch_paginated(self, base_params: dict, s3_key_prefix: str) -> None:
+        """Shared pagination loop used by both bulk and delta modes."""
+        start_index = 0
+        page = 1
+        while True:
+            url = self.build_url({**base_params, "startIndex": start_index, "resultsPerPage": 2000})
+            resp = self._request(url, headers={"apiKey": settings.NVD_API_KEY})
+            records = self._parser(resp)
+            date_str = datetime.utcnow().strftime("%Y-%m-%d")
+            s3_key = build_s3_key(
+                self.source,
+                date_str,
+                self.elt_run_id,
+                f"{s3_key_prefix}_page_{page:03d}",
+            )
+            self._store(records, s3_key)
+            total = resp.json()["totalResults"]
+            start_index += 2000
+            page += 1
+            if start_index >= total:
+                break
+            time.sleep(2)
+
     def fetch(self):
         if self.mode == "bulk_load":
-            start_index = 0
-            page = 1
-            while True:
-                url = self.build_url({"startIndex": start_index, "resultsPerPage": 2000})
-                print(url)
-                print(settings.NVD_API_KEY)
-                resp = self._request(url, headers={"apiKey": settings.NVD_API_KEY})
-                records = self._parser(resp)
-                s3_key = build_s3_key(self.source, self.elt_run_id, f"bulk_page_{page:03d}")
-                self._store(records, s3_key)
-                total = resp.json()["totalResults"]
-                start_index += 2000
-                page += 1
-                if start_index >= total:
-                    break
-                time.sleep(2)
+            # Three passes as designed — CRITICAL, HIGH, KEV — each fully paginated.
+            # Overlaps between passes are deduplicated in the transformation layer.
+            for pass_name in ("CRITICAL", "HIGH", "KEV"):
+                base_params = self._build_params(pass_name=pass_name)
+                self._fetch_paginated(base_params, s3_key_prefix=f"bulk_{pass_name.lower()}")
 
         elif self.mode == "delta_poll":
-            last_run = self.db.query(EltRun).filter(EltRun.status == "success").order_by(EltRun.started_at.desc()).first()
+            last_run = (
+                self.db.query(EltRun)
+                .filter(EltRun.status == "success")
+                .order_by(EltRun.started_at.desc())
+                .first()
+            )
             start_date = last_run.started_at.strftime("%Y-%m-%dT%H:%M:%S.000Z")
             base_params = self._build_params(start_date=start_date)
-            start_index = 0
-            page = 1
-            while True:
-                url = self._build_url({**base_params, "startIndex": start_index, "resultsPerPage": 2000})
-                resp = self._request(url, headers={"apiKey": settings.NVD_API_KEY})
-                records = self._parser(resp)
-                s3_key = build_s3_key(self.source, self.elt_run_id, f"delta_page_{page:03d}")
-                self._store(records, s3_key)
-                total = resp.json()["totalResults"]
-                start_index += 2000
-                page += 1
-                if start_index >= total:
-                    break
-                time.sleep(2)
+            self._fetch_paginated(base_params, s3_key_prefix="delta")

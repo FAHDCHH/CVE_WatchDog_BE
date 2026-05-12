@@ -5,7 +5,39 @@ Orchestration only — no source-specific logic.
 import sys
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+# ---------------------------------------------------------------------------
+# Self-bootstrap: if we're not already running inside the project's .venv,
+# re-exec with the venv interpreter so third-party packages are always found.
+# This means `python -m pipeline.run ...` works without manually activating.
+# ---------------------------------------------------------------------------
+_PROJECT_ROOT = Path(__file__).resolve().parents[1]
+_VENV_PYTHON = (
+    _PROJECT_ROOT / ".venv" / "Scripts" / "python.exe"   # Windows
+    if sys.platform == "win32"
+    else _PROJECT_ROOT / ".venv" / "bin" / "python"      # Linux / macOS
+)
+
+def _running_in_venv() -> bool:
+    """True when the current interpreter lives inside our .venv."""
+    try:
+        return Path(sys.executable).resolve().is_relative_to(_VENV_PYTHON.parent)
+    except AttributeError:
+        # Python < 3.9 doesn't have is_relative_to
+        return str(Path(sys.executable).resolve()).startswith(str(_VENV_PYTHON.parent))
+
+if not _running_in_venv() and _VENV_PYTHON.exists():
+    import os, subprocess
+    result = subprocess.run([str(_VENV_PYTHON), "-m", "pipeline.run"] + sys.argv[1:])
+    sys.exit(result.returncode)
+elif not _VENV_PYTHON.exists():
+    print(
+        f"[pipeline.run] WARNING: .venv not found at {_VENV_PYTHON}. "
+        "Run `python -m venv .venv && .venv\\Scripts\\pip install -r requirements.txt` first.",
+        file=sys.stderr,
+    )
+# ---------------------------------------------------------------------------
+
+sys.path.insert(0, str(_PROJECT_ROOT))
 
 import uuid
 from datetime import datetime
@@ -82,3 +114,32 @@ class Orchestrator:
         self._finalize_run(sources_status)
 
 
+if __name__ == "__main__":
+    # Called by GitHub Actions as:
+    #   python -m pipeline.run <mode> <pipeline>
+    #   e.g. python -m pipeline.run delta_poll nvd
+    #        python -m pipeline.run delta_poll daily
+    #        python -m pipeline.run bulk_load nvd
+    if len(sys.argv) != 3:
+        print("Usage: python -m pipeline.run <mode> <pipeline>")
+        print("  mode:     bulk_load | delta_poll")
+        print("  pipeline: nvd | daily")
+        sys.exit(1)
+
+    mode = sys.argv[1]
+    pipeline = sys.argv[2]
+
+    if mode not in ("bulk_load", "delta_poll"):
+        print(f"Invalid mode: {mode}")
+        sys.exit(1)
+
+    if pipeline not in ("nvd", "daily"):
+        print(f"Invalid pipeline: {pipeline}")
+        sys.exit(1)
+
+    orchestrator = Orchestrator(triggered_by="scheduled", mode=mode)
+
+    if pipeline == "nvd":
+        orchestrator.run_nvd()
+    elif pipeline == "daily":
+        orchestrator.run_daily()

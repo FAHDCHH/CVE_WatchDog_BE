@@ -33,7 +33,7 @@ class CISA_KEVExtractor(BaseExtractor):
         try:
             resp = self._request(self.build_url("primary"))
         except Exception:
-            resp = self._request(self.build_url("primary"))
+            resp = self._request(self.build_url("secondary"))
         records = self._parser(resp)
 
         s3_key = build_s3_key(  

@@ -5,6 +5,7 @@ Shared behavior: retry, log, store.
 import logging
 import httpx
 from abc import ABC, abstractmethod
+# pyrefly: ignore [missing-import]
 from tenacity import (
     retry,
     stop_after_attempt,
