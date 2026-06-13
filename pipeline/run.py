@@ -63,6 +63,7 @@ class Orchestrator:
         elt_run = EltRun(
             id=uuid.uuid4(),
             triggered_by=self.triggered_by,
+            mode=self.mode,
             status="running",
             started_at=datetime.utcnow()
         )
@@ -97,7 +98,25 @@ class Orchestrator:
                 sources_status[extractor.source] = "success"
             except Exception:
                 sources_status[extractor.source] = "failed"
+        # Transform + load + consistency for the pages this run just extracted.
+        sources_status["transform"] = self._run_transform()
         self._finalize_run(sources_status)
+
+    def run_transform(self):
+        """Standalone transform over the latest artifacts already in R2."""
+        sources_status = {"transform": self._run_transform()}
+        self._finalize_run(sources_status)
+
+    def _run_transform(self) -> str:
+        from pipeline.transform.runner import TransformRunner
+
+        try:
+            summary = TransformRunner(self.db, self.run_id).run()
+            print(f"[transform] summary: {summary}")
+            return "success"
+        except Exception as exc:
+            print(f"[transform] failed: {exc!r}")
+            return "failed"
 
     def run_daily(self):
         extractors = [
@@ -123,7 +142,7 @@ if __name__ == "__main__":
     if len(sys.argv) != 3:
         print("Usage: python -m pipeline.run <mode> <pipeline>")
         print("  mode:     bulk_load | delta_poll")
-        print("  pipeline: nvd | daily")
+        print("  pipeline: nvd | daily | transform")
         sys.exit(1)
 
     mode = sys.argv[1]
@@ -133,7 +152,7 @@ if __name__ == "__main__":
         print(f"Invalid mode: {mode}")
         sys.exit(1)
 
-    if pipeline not in ("nvd", "daily"):
+    if pipeline not in ("nvd", "daily", "transform"):
         print(f"Invalid pipeline: {pipeline}")
         sys.exit(1)
 
@@ -143,3 +162,5 @@ if __name__ == "__main__":
         orchestrator.run_nvd()
     elif pipeline == "daily":
         orchestrator.run_daily()
+    elif pipeline == "transform":
+        orchestrator.run_transform()

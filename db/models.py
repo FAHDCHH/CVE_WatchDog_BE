@@ -1,5 +1,5 @@
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 
 from sqlalchemy import (
     Boolean,
@@ -19,67 +19,13 @@ from sqlalchemy import (
 from sqlalchemy.dialects.postgresql import ARRAY, JSONB, UUID
 from sqlalchemy.orm import declarative_base, relationship
 
+from core.constants import LOG_LEVELS, PIPELINE_SOURCES, PIPELINE_EVENT_TYPES
 
 Base = declarative_base()
 
 
-LOG_LEVELS = ("debug", "info", "warn", "error")
-PIPELINE_SOURCES = (
-    "nvd_cves",
-    "nvd_changes",
-    "epss",
-    "cisa_kev",
-    "cwe",
-    "transform",
-    "load",
-    "consistency",
-    "recovery",
-    "watchdog",
-    "system",
-)
-PIPELINE_EVENT_TYPES = (
-    "extract_started",
-    "extract_success",
-    "extract_failed",
-    "extract_rate_limited",
-    "extract_retry",
-    "transform_started",
-    "transform_success",
-    "transform_failed",
-    "cvss_resolved",
-    "cvss_fallback_used",
-    "cvss_absent",
-    "cwe_resolved",
-    "cwe_missing",
-    "epss_joined",
-    "epss_absent",
-    "kev_matched",
-    "kev_field_changed",
-    "kev_removed",
-    "kev_skipped",
-    "status_changed",
-    "load_started",
-    "load_success",
-    "load_failed",
-    "history_written",
-    "consistency_check_started",
-    "consistency_check_passed",
-    "consistency_check_failed",
-    "recovery_triggered",
-    "recovery_cve_identified",
-    "recovery_path_extract",
-    "recovery_path_transform",
-    "recovery_success",
-    "recovery_failed",
-    "watchdog_check",
-    "stale_run_detected",
-    "run_marked_crashed",
-    "watchdog_alert_sent",
-)
-
-
 def utcnow() -> datetime:
-    return datetime.utcnow()
+    return datetime.now(timezone.utc)
 
 
 class EltRun(Base):
@@ -122,7 +68,7 @@ class PipelineLog(Base):
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     elt_run_id = Column(UUID(as_uuid=True), ForeignKey("elt_runs.id", ondelete="CASCADE"), nullable=False)
-    cve_id = Column(String(32), ForeignKey("cve_enriched.cve_id", ondelete="SET NULL"), nullable=True)
+    cve_id = Column(String(32), nullable=True)
     level = Column(String(16), nullable=False)
     source = Column(String(32), nullable=False)
     event_type = Column(String(64), nullable=False)
@@ -139,7 +85,6 @@ class PipelineLog(Base):
     created_at = Column(DateTime(timezone=True), default=utcnow, nullable=False, index=True)
 
     run = relationship("EltRun", back_populates="logs")
-    cve = relationship("CveEnriched", back_populates="logs")
 
     __table_args__ = (
         CheckConstraint(f"level IN {LOG_LEVELS}", name="ck_pipeline_logs_level"),
@@ -195,12 +140,11 @@ class CveEnriched(Base):
     cvss_type = Column(String(32), nullable=True)
     cvss_version = Column(String(16), nullable=True, index=True)
     cvss_vector = Column(Text, nullable=True)
-    cvss_score = Column(Numeric(3, 1), nullable=True, index=True)
+    cvss_score = Column(Numeric(4, 1), nullable=True, index=True)
     cvss_severity = Column(String(16), nullable=True, index=True)
     exploitability_score = Column(Numeric(4, 2), nullable=True)
     impact_score = Column(Numeric(4, 2), nullable=True)
     exploit_maturity = Column(String(32), nullable=True, index=True)
-    cvss_metrics = Column(JSONB, nullable=True)
 
     attack_vector = Column(String(32), nullable=True, index=True)
     attack_complexity = Column(String(32), nullable=True)
@@ -253,10 +197,9 @@ class CveEnriched(Base):
     first_seen_at = Column(DateTime(timezone=True), default=utcnow, nullable=False)
     last_seen_at = Column(DateTime(timezone=True), default=utcnow, nullable=False)
     last_transform_run_id = Column(UUID(as_uuid=True), ForeignKey("elt_runs.id"), nullable=True)
+    is_updated = Column(Boolean, nullable=False, default=False, index=True)
     updated_at = Column(DateTime(timezone=True), default=utcnow, onupdate=utcnow, nullable=False)
 
-    logs = relationship("PipelineLog", back_populates="cve")
-    cvss_metrics_all = relationship("CveCvssMetric", back_populates="cve", cascade="all, delete-orphan")
     epss_scores = relationship("EpssScore", back_populates="cve", cascade="all, delete-orphan")
     kev_history = relationship("CveKevHistory", back_populates="cve", cascade="all, delete-orphan")
     cvss_history = relationship("CveCvssHistory", back_populates="cve", cascade="all, delete-orphan")
@@ -284,10 +227,22 @@ class CveCvssHistory(Base):
     new_version = Column(String(16), nullable=True)
     old_vector = Column(Text, nullable=True)
     new_vector = Column(Text, nullable=True)
-    old_score = Column(Numeric(3, 1), nullable=True)
-    new_score = Column(Numeric(3, 1), nullable=True)
+    old_score = Column(Numeric(4, 1), nullable=True)
+    new_score = Column(Numeric(4, 1), nullable=True)
     old_severity = Column(String(16), nullable=True)
     new_severity = Column(String(16), nullable=True)
+    old_attack_vector = Column(String(32), nullable=True)
+    new_attack_vector = Column(String(32), nullable=True)
+    old_attack_complexity = Column(String(32), nullable=True)
+    new_attack_complexity = Column(String(32), nullable=True)
+    old_attack_requirements = Column(String(32), nullable=True)
+    new_attack_requirements = Column(String(32), nullable=True)
+    old_privileges_required = Column(String(32), nullable=True)
+    new_privileges_required = Column(String(32), nullable=True)
+    old_user_interaction = Column(String(32), nullable=True)
+    new_user_interaction = Column(String(32), nullable=True)
+    old_exploit_maturity = Column(String(32), nullable=True)
+    new_exploit_maturity = Column(String(32), nullable=True)
     change_reason = Column(Text, nullable=True)
     changed_at = Column(DateTime(timezone=True), default=utcnow, nullable=False)
 
@@ -426,7 +381,3 @@ class CweFetchJob(Base):
         CheckConstraint("status IN ('queued', 'running', 'success', 'failed')", name="ck_cwe_fetch_jobs_status"),
         UniqueConstraint("cwe_id", "status", name="uq_cwe_fetch_jobs_cwe_status"),
     )
-
-
-
-

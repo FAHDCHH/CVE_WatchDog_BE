@@ -15,7 +15,7 @@ class NVD_Changes_Extractor(BaseExtractor):
     URL = "https://services.nvd.nist.gov/rest/json/cvehistory/2.0"
 
     def __init__(self, elt_run_id: str, mode: str, db=None):
-        super().__init__(elt_run_id=elt_run_id, source="nvd_changes")
+        super().__init__(elt_run_id=elt_run_id, source="nvd_changes", db=db)
         if mode not in ("bulk_load", "delta_poll"):
             raise ValueError(f"Invalid mode: {mode}")
         if mode == "delta_poll" and db is None:

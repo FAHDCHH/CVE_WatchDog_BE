@@ -2,7 +2,7 @@
 pipeline/extractors/epss.py
 EPSS-specific: fetch, parse, schema, key pattern.
 """
- 
+
 from datetime import datetime, timedelta
 import httpx
 from pipeline.extractors.base import BaseExtractor

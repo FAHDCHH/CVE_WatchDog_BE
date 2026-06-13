@@ -14,7 +14,7 @@ from db.models import EltRun
 class NVDCVEsExtractor(BaseExtractor):
     BASE_URL = "https://services.nvd.nist.gov/rest/json/cves/2.0"
     def __init__(self, elt_run_id: str, mode: str, db=None):
-        super().__init__(elt_run_id=elt_run_id, source="nvd_cves")
+        super().__init__(elt_run_id=elt_run_id, source="nvd_cves", db=db)
         if mode not in ("bulk_load", "delta_poll"):
             raise ValueError(f"Invalid mode: {mode}")
         if mode == "delta_poll" and db is None:
@@ -89,6 +89,14 @@ class NVDCVEsExtractor(BaseExtractor):
                 .order_by(EltRun.started_at.desc())
                 .first()
             )
-            start_date = last_run.started_at.strftime("%Y-%m-%dT%H:%M:%S.000Z")
+            # First-run fallback: no prior successful run exists yet, so there is
+            # no watermark to poll from. Default to a bounded recent lookback
+            # window instead of crashing on None.
+            if last_run is None:
+                lookback_hours = int(getattr(settings, "DELTA_LOOKBACK_HOURS", 36))
+                watermark = datetime.utcnow() - timedelta(hours=lookback_hours)
+            else:
+                watermark = last_run.started_at
+            start_date = watermark.strftime("%Y-%m-%dT%H:%M:%S.000Z")
             base_params = self._build_params(start_date=start_date)
             self._fetch_paginated(base_params, s3_key_prefix="delta")

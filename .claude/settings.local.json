@@ -1,0 +1,20 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python -m alembic heads)",
+      "Bash(python -m alembic history)",
+      "Bash(python -m alembic current)",
+      "Bash(python -c \"from core.config import settings; print\\('endpoint:', settings.R2_ENDPOINT_URL if hasattr\\(settings,'R2_ENDPOINT_URL'\\) else 'MISSING'\\); print\\('bucket:', getattr\\(settings,'R2_BUCKET_NAME','MISSING'\\)\\); print\\('key_id_set:', bool\\(getattr\\(settings,'R2_ACCESS_KEY_ID',None\\)\\)\\); print\\('secret_set:', bool\\(getattr\\(settings,'R2_SECRET_ACCESS_KEY',None\\)\\)\\)\")",
+      "Bash(python -c \"from core.config import settings; [print\\(k,'=',\\('SET' if v else 'EMPTY'\\) if 'KEY' in k or 'SECRET' in k or 'TOKEN' in k else v\\) for k,v in settings.model_dump\\(\\).items\\(\\) if 'R2' in k.upper\\(\\) or 'CLOUD' in k.upper\\(\\) or 'S3' in k.upper\\(\\) or 'BUCKET' in k.upper\\(\\) or 'ENDPOINT' in k.upper\\(\\)]\")",
+      "Bash(python -c ' *)",
+      "Bash(.venv/Scripts/python.exe -c ' *)",
+      "Bash(grep -iA3 pytest)",
+      "Bash(.venv/Scripts/python.exe -m pytest tests/ -q)",
+      "Bash(.venv/Scripts/python.exe -m pip install pytest -q)",
+      "Bash(.venv/Scripts/python.exe -m pytest tests/pipeline/transform/test_transform.py -q)",
+      "Bash(.venv/Scripts/python.exe -c \"import pipeline.run; print\\('imports OK'\\)\")",
+      "Bash(.venv/Scripts/python.exe -c \"import inspect; from pipeline.transform import TransformResult; print\\(inspect.signature\\(TransformResult.__init__\\)\\)\")",
+      "Bash(.venv/Scripts/python.exe -m pytest tests/pipeline/transform/test_runner.py -q)"
+    ]
+  }
+}

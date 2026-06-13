@@ -42,5 +42,4 @@ class CISA_KEVExtractor(BaseExtractor):
             self.elt_run_id, 
             "snapshot"
         )
-        print(records)
         self._store(records, s3_key)
