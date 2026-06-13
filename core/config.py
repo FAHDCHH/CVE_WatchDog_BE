@@ -33,6 +33,9 @@ class Settings(BaseSettings):
 
     class Config:
         env_file = ".env"
+        # The dashboard API shares this .env and adds its own keys; ignore them
+        # here rather than failing the pipeline on unrelated settings.
+        extra = "ignore"
 
 
 settings = Settings()

@@ -13,8 +13,8 @@ from pyarrow import csv as pa_csv
 from pyarrow.csv import ReadOptions
 
 class EPSSextractor(BaseExtractor):
-    def __init__(self, elt_run_id: str):
-        super().__init__(elt_run_id=elt_run_id, source="epss")
+    def __init__(self, elt_run_id: str, db=None):
+        super().__init__(elt_run_id=elt_run_id, source="epss", db=db)
     def build_url(self):
         """constructs the queried url based for the current date to this format : `https://epss.empiricalsecurity.com/epss_scores-YYYY-MM-DD.csv.gz`"""
         yesterday = datetime.now() - timedelta(days=1)
@@ -32,10 +32,31 @@ class EPSSextractor(BaseExtractor):
     def fetch(self):
         """fetches the epss csv and stores it in the raw store"""
         url = self.build_url()
-        resp = self._request(url, headers={"User-Agent": "Mozilla/5.0"})
+        self._safe_log("extract_epss_bulk_started", "EPSS snapshot fetch started", request_url=url)
+        try:
+            resp = self._request(url, headers={"User-Agent": "Mozilla/5.0"})
+        except Exception as exc:
+            self._safe_log(
+                "extract_epss_bulk_failed", "EPSS snapshot fetch failed",
+                level="error", metadata={"error_type": exc.__class__.__name__},
+            )
+            raise
         records = self._parser(resp)
-       
-        s3_key = build_s3_key(self.source, datetime.now().strftime("%Y-%m-%d"),self.elt_run_id, "snapshot")
-        self._store(records, s3_key)
+
+        s3_key = build_s3_key(self.source, datetime.now().strftime("%Y-%m-%d"), self.elt_run_id, "snapshot")
+        try:
+            self._store(records, s3_key)
+            self._safe_log("extract_r2_write_success", "EPSS snapshot stored", s3_key=s3_key)
+        except Exception as exc:
+            self._safe_log(
+                "extract_r2_write_failed", "EPSS snapshot R2 write failed",
+                level="error", s3_key=s3_key, metadata={"error_type": exc.__class__.__name__},
+            )
+            raise
+        self._safe_log(
+            "extract_epss_bulk_success", "EPSS snapshot extracted",
+            s3_key=s3_key, response_size_bytes=len(resp.content),
+            metadata={"records": len(records)},
+        )
     
         

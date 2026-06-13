@@ -7,6 +7,7 @@ import time
 from urllib.parse import urlencode
 from datetime import datetime, timedelta
 from core.config import settings
+from core.exceptions.exceptions import RateLimitError
 from pipeline.extractors.base import BaseExtractor
 from storage.s3 import build_s3_key
 from db.models import EltRun
@@ -57,7 +58,29 @@ class NVDCVEsExtractor(BaseExtractor):
         page = 1
         while True:
             url = self.build_url({**base_params, "startIndex": start_index, "resultsPerPage": 2000})
-            resp = self._request(url, headers={"apiKey": settings.NVD_API_KEY})
+            self._safe_log(
+                "extract_page_started",
+                f"Fetching {s3_key_prefix} page {page}",
+                page_number=page, request_url=url,
+            )
+            try:
+                resp = self._request(url, headers={"apiKey": settings.NVD_API_KEY})
+            except RateLimitError as exc:
+                self._safe_log(
+                    "extract_page_rate_limited",
+                    f"Rate limited on {s3_key_prefix} page {page}",
+                    level="warn", page_number=page,
+                    metadata={"error_type": exc.__class__.__name__},
+                )
+                raise
+            except Exception as exc:
+                self._safe_log(
+                    "extract_page_failed",
+                    f"Fetch failed on {s3_key_prefix} page {page}",
+                    level="error", page_number=page,
+                    metadata={"error_type": exc.__class__.__name__},
+                )
+                raise
             records = self._parser(resp)
             date_str = datetime.utcnow().strftime("%Y-%m-%d")
             s3_key = build_s3_key(
@@ -66,7 +89,27 @@ class NVDCVEsExtractor(BaseExtractor):
                 self.elt_run_id,
                 f"{s3_key_prefix}_page_{page:03d}",
             )
-            self._store(records, s3_key)
+            try:
+                self._store(records, s3_key)
+                self._safe_log(
+                    "extract_r2_write_success",
+                    f"Stored {s3_key_prefix} page {page}",
+                    page_number=page, s3_key=s3_key,
+                )
+            except Exception as exc:
+                self._safe_log(
+                    "extract_r2_write_failed",
+                    f"R2 write failed for {s3_key_prefix} page {page}",
+                    level="error", page_number=page, s3_key=s3_key,
+                    metadata={"error_type": exc.__class__.__name__},
+                )
+                raise
+            self._safe_log(
+                "extract_page_success",
+                f"{s3_key_prefix} page {page} extracted",
+                page_number=page, response_size_bytes=len(resp.content),
+                metadata={"records": len(records)},
+            )
             total = resp.json()["totalResults"]
             start_index += 2000
             page += 1

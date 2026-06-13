@@ -14,7 +14,11 @@
       "Bash(.venv/Scripts/python.exe -m pytest tests/pipeline/transform/test_transform.py -q)",
       "Bash(.venv/Scripts/python.exe -c \"import pipeline.run; print\\('imports OK'\\)\")",
       "Bash(.venv/Scripts/python.exe -c \"import inspect; from pipeline.transform import TransformResult; print\\(inspect.signature\\(TransformResult.__init__\\)\\)\")",
-      "Bash(.venv/Scripts/python.exe -m pytest tests/pipeline/transform/test_runner.py -q)"
+      "Bash(.venv/Scripts/python.exe -m pytest tests/pipeline/transform/test_runner.py -q)",
+      "Bash(.venv/Scripts/python.exe -m pytest tests/pipeline/extractors/test_extractors.py -q)",
+      "Bash(.venv/Scripts/python.exe -m pytest tests/dashboard_api/test_api.py -q)",
+      "Bash(.venv/Scripts/python -m pytest tests/dashboard_api/test_api.py -q)",
+      "Bash(.venv/Scripts/python -m pytest -q)"
     ]
   }
 }

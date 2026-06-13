@@ -44,17 +44,37 @@ class NVD_Changes_Extractor(BaseExtractor):
             last_run = self.db.query(EltRun).filter(
                 EltRun.status == "success"
             ).order_by(EltRun.started_at.desc()).first()
-            start_date = last_run.started_at.strftime("%Y-%m-%dT%H:%M:%S.000Z")
+            # First-run fallback: no prior successful run exists yet, so there
+            # is no watermark to poll from. Use a bounded recent lookback window
+            # instead of crashing on None.attribute access.
+            if last_run is None:
+                lookback_hours = int(getattr(settings, "DELTA_LOOKBACK_HOURS", 36))
+                watermark = datetime.utcnow() - timedelta(hours=lookback_hours)
+            else:
+                watermark = last_run.started_at
+            start_date = watermark.strftime("%Y-%m-%dT%H:%M:%S.000Z")
 
         params = self._build_params(start_date)
         start_index = 0
         page = 1
         while True:
             params["startIndex"] = start_index
-            resp = self._request(
-                self.build_url(params),
-                headers={"apiKey": settings.NVD_API_KEY}
+            url = self.build_url(params)
+            self._safe_log(
+                "extract_change_history_started",
+                f"Fetching change-history page {page}",
+                page_number=page, request_url=url,
             )
+            try:
+                resp = self._request(url, headers={"apiKey": settings.NVD_API_KEY})
+            except Exception as exc:
+                self._safe_log(
+                    "extract_change_history_failed",
+                    f"Change-history page {page} fetch failed",
+                    level="error", page_number=page,
+                    metadata={"error_type": exc.__class__.__name__},
+                )
+                raise
             records = self._parser(resp)
             s3_key = build_s3_key(
                 self.source,
@@ -62,7 +82,26 @@ class NVD_Changes_Extractor(BaseExtractor):
                 self.elt_run_id,
                 f"{self.mode}_page_{page:03d}"
             )
-            self._store(records, s3_key)
+            try:
+                self._store(records, s3_key)
+                self._safe_log(
+                    "extract_r2_write_success",
+                    f"Stored change-history page {page}",
+                    page_number=page, s3_key=s3_key,
+                )
+            except Exception as exc:
+                self._safe_log(
+                    "extract_r2_write_failed",
+                    f"R2 write failed for change-history page {page}",
+                    level="error", page_number=page, s3_key=s3_key,
+                    metadata={"error_type": exc.__class__.__name__},
+                )
+                raise
+            self._safe_log(
+                "extract_change_history_success",
+                f"Change-history page {page} extracted",
+                page_number=page, response_size_bytes=len(resp.content),
+            )
             total = resp.json()["totalResults"]
             start_index += 5000
             page += 1

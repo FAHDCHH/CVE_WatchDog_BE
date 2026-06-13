@@ -120,8 +120,8 @@ class Orchestrator:
 
     def run_daily(self):
         extractors = [
-            EPSSextractor(self.run_id),
-            CISA_KEVExtractor(self.run_id),
+            EPSSextractor(self.run_id, db=self.db),
+            CISA_KEVExtractor(self.run_id, db=self.db),
         ]
         sources_status = {}
         for extractor in extractors:

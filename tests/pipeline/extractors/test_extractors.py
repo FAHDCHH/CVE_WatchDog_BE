@@ -70,6 +70,24 @@ class ExtractorTests(TestCase):
         self.assertIn("changeEndDate", params)
         self.assertEqual(params["resultsPerPage"], 5000)
 
+    def test_nvd_changes_delta_first_run_uses_lookback_not_crash(self) -> None:
+        # Fresh DB: no prior successful run. Must fall back to a lookback
+        # window instead of crashing on None.started_at.
+        db = Mock()
+        db.query.return_value.filter.return_value.order_by.return_value.first.return_value = None
+        extractor = NVD_Changes_Extractor("run-1", mode="delta_poll", db=db)
+        response = httpx.Response(
+            200, json={"cveChanges": [], "totalResults": 0}
+        )
+        extractor._request = Mock(return_value=response)
+        extractor._store = Mock()
+
+        extractor.fetch()  # must not raise AttributeError
+
+        requested_url = extractor._request.call_args.args[0]
+        self.assertIn("changeStartDate=", requested_url)
+        extractor._store.assert_called_once()
+
     def test_daily_extractors_are_snapshot_sources(self) -> None:
         epss = EPSSextractor("run-1")
         kev = CISA_KEVExtractor("run-1")
