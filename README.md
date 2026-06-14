@@ -51,6 +51,7 @@ curl -H "X-API-Key: $DASHBOARD_API_KEY" \
 ## ELT pipeline
 
 ```
-.venv/Scripts/python -m pipeline.run <pipeline> <mode>
+.venv/Scripts/python -m pipeline.run <mode> <pipeline>
+# mode:     bulk_load | delta_poll
 # pipeline: nvd | daily | transform
 ```
