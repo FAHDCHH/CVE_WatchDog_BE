@@ -25,20 +25,26 @@ _api_key_scheme = APIKeyHeader(name=API_KEY_HEADER, auto_error=False)
 
 
 def require_api_key(key: str | None = Security(_api_key_scheme)) -> None:
-    """Reject any request without a valid data API key. Fails closed."""
-    expected = api_settings.DASHBOARD_API_KEY
-    if not expected:
+    """Gate the data endpoints. Accepts the user (data) key OR the admin key —
+    admin is a superset of user access. Fails closed."""
+    data_key = api_settings.DASHBOARD_API_KEY
+    admin_key = api_settings.ADMIN_API_KEY
+    if not data_key and not admin_key:
         raise APIError(
             status_code=503,
             code="auth_not_configured",
             message="API key authentication is not configured on the server.",
         )
-    if not key or not hmac.compare_digest(key, expected):
-        raise APIError(
-            status_code=401,
-            code="unauthorized",
-            message="A valid API key must be supplied in the X-API-Key header.",
-        )
+    if key and (
+        (data_key and hmac.compare_digest(key, data_key))
+        or (admin_key and hmac.compare_digest(key, admin_key))
+    ):
+        return
+    raise APIError(
+        status_code=401,
+        code="unauthorized",
+        message="A valid API key must be supplied in the X-API-Key header.",
+    )
 
 
 def require_admin_key(key: str | None = Security(_api_key_scheme)) -> None:

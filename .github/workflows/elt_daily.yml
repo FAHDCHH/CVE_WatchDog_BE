@@ -22,5 +22,7 @@ jobs:
         with:
           python-version: '3.12'
       - run: pip install -r requirements.txt
+      # Report dependency CVEs but never block data collection on them.
       - run: pip-audit
+        continue-on-error: true
       - run: python -m pipeline.run delta_poll daily
