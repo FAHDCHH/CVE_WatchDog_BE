@@ -93,9 +93,19 @@ def test_not_found_builds_404_apierror_naming_the_id():
 # --------------------------------------------------------------------------- #
 def test_require_api_key_fails_closed_when_unset(monkeypatch):
     monkeypatch.setattr(api_settings, "DASHBOARD_API_KEY", "")
+    monkeypatch.setattr(api_settings, "ADMIN_API_KEY", "")
     with pytest.raises(APIError) as ei:
         require_api_key("anything")
     assert ei.value.status_code == 503
+
+
+def test_admin_key_also_unlocks_data_endpoints(monkeypatch):
+    # Admin access is a superset of user access: the admin key must satisfy the
+    # data-endpoint gate as well.
+    monkeypatch.setattr(api_settings, "DASHBOARD_API_KEY", "data")
+    monkeypatch.setattr(api_settings, "ADMIN_API_KEY", "admin")
+    assert require_api_key("admin") is None
+    assert require_api_key("data") is None
 
 
 def test_require_api_key_rejects_wrong_key(monkeypatch):
