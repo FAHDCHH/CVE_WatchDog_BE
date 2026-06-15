@@ -19,8 +19,6 @@ user or admin key and shows the matching sections (Pipeline Ops is admin-only).
 
 ### Demo keys
 
-> ⚠️ These are **demo keys** for local/academic use. Rotate them before any real
-> deployment, and keep production keys out of source control.
 
 ```
 User  (analyst) key :  xvjwrc7Wr-rkAZcdZ1L7btJhaXEZNGUGzdHuU7F44U0
@@ -46,14 +44,7 @@ A separate FastAPI app under `dashboard_api/`. It shares only `db/models.py`
 and `core/config.py`; it never writes. CORS lock, per-IP rate limiting, security
 headers, and a consistent error envelope.
 
-### Configure
 
-Add to `.env` (keys are generated, not guessed — rotate before production):
-
-```
-DASHBOARD_API_KEY=<user key>        # CVE dashboards: /cves, /stats, /meta
-ADMIN_API_KEY=<admin key>           # adds /admin/* (runs + logs); superset of user
-CORS_ALLOW_ORIGINS=https://your-frontend.example   # comma-separated; * in dev
 ```
 
 ### Run
